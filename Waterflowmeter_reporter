@@ -1,0 +1,137 @@
+#!/usr/bin/python3
+import psycopg2, sys, time, datetime  
+from datetime import datetime as dtprog
+from datetime import timedelta
+import matplotlib.pyplot as plt #import the Python Matplotlib sub-module for graph plotting pyplot.
+import os
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.header import Header
+
+def sendamail(thedate):
+    smtp_ssl_host = 'smtp.gmail.com'  # smtp.mail.yahoo.com
+    smtp_ssl_port = 465
+    username = 'xxxxxxxx@gmail.com'
+    password = 'zzzzzzzzzz'
+    sender = 'xxxxxxxx@gmail.com'
+    targets = ['yyyyy@gmail.com' , 'zzzzzzzzzz@gmail.com']
+    roundgals = round(totalgallons)
+
+    msg = MIMEMultipart()
+    msg['Subject'] = Header( 'Water Usage for ' + thedate + ' --  ' + str(roundgals) + ' gallons' , 'utf-8')
+    msg['From'] = sender 
+    msg['To'] = ', '.join(targets)
+    txt = MIMEText('Generated automatically at 1 A.M. for the prior days useage')
+    msg.attach(txt)
+
+    filepath = '/home/john/py/static/gallons.png'      #linux
+     #filepath = "J:\Python\Python38-32\py\static\gallons.png"   #windows
+    with open(filepath, 'rb') as f:
+        img = MIMEImage(f.read())
+
+    img.add_header('Content-Disposition',
+               'attachment',
+               filename=os.path.basename(filepath))
+    msg.attach(img)
+
+    server = smtplib.SMTP_SSL(smtp_ssl_host, smtp_ssl_port)
+    server.login(username, password)
+    server.sendmail(sender, targets, msg.as_string())
+    print("End of sendmail routine")
+    server.quit()
+
+
+def getMobileDetails(startT, endT):
+    try:
+        connection = psycopg2.connect(user="aaaaaaa",
+                                      password="pppppppppp",
+                                      host="localhost",
+                                      port="5432",
+                                      database="water")
+
+        #print("Using Python variable in PostgreSQL select Query")
+        global totalgallons
+        x = []
+        y = []
+        rcount = 0
+        cursor = connection.cursor()
+        postgreSQL_select_Query = "(select * from flow_meter where datetime > %s AND datetime < %s)"
+        cursor.execute(postgreSQL_select_Query, (startT,endT,))
+        mobile_records = cursor.fetchall()
+        totalgallons = 0
+        for row in mobile_records:
+          if row[5] < 6000:                    #selective drop of some large records
+            #print("row 0 = ", row[0])
+            #print("row 1 = ", row[1])
+            #print("row 2 = ", row[2])
+            #print("row 4 = ", row[4])
+            #print("row 5 = ", row[5])
+            d2 = row[4]
+            d1 = row[0]
+            diffy = (d1 - d2)
+            #print(type(d1), type(d2), type(diffy))
+            #print("diff = ", diffy)
+            msecs = diffy.days*86400000 + diffy.seconds*1000 + diffy.microseconds/1000
+            secs = msecs / 1000
+            mins = secs / 60
+            cups_pm = row[2] / mins
+            gpm     = row[5] / mins
+            totalgallons = totalgallons + row[5]
+            #print("milliseconds", msecs, type(msecs),'secs = ', secs, type(secs), "minutes = ", mins, type(mins))
+            #print(" cups per minute = ", cups_pm, "GPM = ", gpm)
+            #print("%.4f" % cups_pm)
+            #print("%.4f" % gpm, "GPM")
+            #y.insert(rcount,row[5])
+            y.append(row[5]) 
+            axday = row[0].strftime("%d")
+            #print("day:", day)
+            axtime = row[0].strftime("%H:%M:%S")
+            #print("time:", time)
+            xaxis = axday + '-' + axtime
+            #x.insert(rcount,xaxis)
+            x.append(xaxis)  
+            rcount = +1
+          else: None 
+        #a = mobile_records[0]
+        #print("a is ", a)
+        #x = [1,2,3,4] # x axis
+        #y = [1,2,3,4] # y axis
+        #print("x = ",x)
+        #fig= plt.figure(figsize=(9,4))
+        plt.title('Total gallons = ' + str(totalgallons), fontsize=12)
+        plt.ylabel('Gallons')
+        plt.xlabel('Time of day')
+        plt.xticks(rotation=90)
+        plt.plot(x,y)# plotting the graph
+        fig = plt.plot()
+        plt.savefig("/home/john/py/static/gallons.png")             #linux  
+        # plt.savefig("J:\Python\Python38-32\py\static\gallons.png") #windows
+        #plt.show() #Displaying the figures
+    except (Exception, psycopg2.Error) as error:
+        print("Error fetching data from PostgreSQL table", error)
+    finally:
+        # closing database connection
+        if (connection):
+            cursor.close()
+            connection.close()
+            #print("PostgreSQL connection is closed \n")
+
+params = {'legend.fontsize': 'large',
+          'figure.figsize': (12, 6),
+         'axes.labelsize': 'small',
+         'axes.titlesize':'small',
+         'xtick.labelsize':'xx-small',
+         'ytick.labelsize':'small'}
+plt.rcParams.update(params)
+
+thenow = datetime.datetime.now() + timedelta(days=-1)
+theyear  = int(thenow.strftime("%Y"))
+themonth = int(thenow.strftime("%m"))
+theday   = int(thenow.strftime("%d"))
+GstartT = dtprog(theyear,themonth,theday,0,0,0)
+GendT =   dtprog(theyear,themonth,theday,23,59,59)
+getMobileDetails(GstartT , GendT)
+thereportday = thenow.strftime("%m")+"-"+thenow.strftime("%d")+"-"+thenow.strftime("%Y")
+sendamail(thereportday)
