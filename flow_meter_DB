@@ -1,0 +1,25 @@
+-- Table: public.flow_meter
+
+-- DROP TABLE public.flow_meter;
+
+CREATE TABLE public.flow_meter
+(
+    datetime timestamp without time zone NOT NULL,
+    movements integer,
+    cups integer,
+    gallons integer,
+    flow_starttime timestamp without time zone,
+    realgals real,
+    CONSTRAINT flow_meter_pkey PRIMARY KEY (datetime)
+)
+WITH (
+    OIDS = FALSE
+)
+TABLESPACE pg_default;
+
+ALTER TABLE public.flow_meter
+    OWNER to xxxYOURIDxxx;
+
+GRANT ALL ON TABLE public.flow_meter TO john;
+
+GRANT INSERT, SELECT ON TABLE public.flow_meter TO PUBLIC;
